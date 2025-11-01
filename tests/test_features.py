@@ -1,0 +1,1 @@
+import pandas as pd\nfrom backend.core.data import build_features, label_crash, synth_ohlcv\n\n\ndef test_build_features_and_label():\n    df = synth_ohlcv('ETH/USDT','1d',600)\n    feats = build_features(df)\n    assert set(['ret_1d','vol_20','rsi_15']).issubset(set(feats.columns))\n    y = label_crash(feats['close'], horizon=10, crash_drop=0.2)\n    assert y.isna().sum() > 0\n
