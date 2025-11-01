@@ -36,3 +36,4 @@ git push -u origin gh-pages
 
 Activez ensuite GitHub Pages : Settings → Pages → Branch: `gh-pages` / root.
 
+
