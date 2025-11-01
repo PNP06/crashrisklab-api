@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Tuple, Any
+from typing import Dict, Tuple, Any, List
 
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import (
     auc as sk_auc,
     brier_score_loss,
@@ -132,8 +133,10 @@ def train_select_and_evaluate(
         return "constant", const, metrics
 
     models: Dict[str, Any] = {}
-    # Balanced logistic regression
-    logit = LogisticRegression(max_iter=2000, class_weight="balanced", solver="lbfgs", random_state=random_state)
+    # Balanced logistic regression + calibration (Platt)
+    base_logit = LogisticRegression(max_iter=2000, class_weight="balanced", solver="lbfgs", random_state=random_state)
+    base_logit.fit(X_tr.values, y_tr.values)
+    logit = CalibratedClassifierCV(base_logit, cv=3, method="sigmoid")
     logit.fit(X_tr.values, y_tr.values)
     models["logistic"] = logit
     # Histogram Gradient Boosting
@@ -163,3 +166,84 @@ def predict_today(model: Any, last_row: pd.Series) -> float:
     x = last_row.values.reshape(1, -1)
     proba = model.predict_proba(x)[:, 1]
     return float(proba[0])
+
+
+def compute_reverse_importances(
+    model: Any,
+    X_tr: pd.DataFrame,
+    y_tr: pd.Series,
+    X_te: pd.DataFrame,
+    top_k: int = 10,
+) -> List[Dict[str, Any]]:
+    """Compute a simple reverse-importance table from the fitted model.
+
+    - If model exposes feature_importances_ (trees), use those (normalized).
+    - Else if it's a calibrated logistic (CalibratedClassifierCV around LogisticRegression),
+      extract coefficients from the base estimator and return standardized OR@1.
+    """
+    feats = list(X_tr.columns)
+    out: List[Dict[str, Any]] = []
+
+    # Tree-based importances
+    fi = getattr(model, "feature_importances_", None)
+    if fi is None:
+        # CalibratedClassifierCV → try underlying estimators
+        base = getattr(model, "base_estimator", None) or getattr(model, "estimator", None)
+        fi = getattr(base, "feature_importances_", None) if base is not None else None
+    if fi is not None and len(fi) == len(feats):
+        total = float(np.sum(fi)) or 1.0
+        rows = [
+            {
+                "name": f,
+                "coef": float(w),
+                "or_at_1": None,
+                "score": float(w / total),
+            }
+            for f, w in zip(feats, fi)
+            if np.isfinite(w)
+        ]
+        rows.sort(key=lambda d: abs(d["score"]), reverse=True)
+        return rows[:top_k]
+
+    # Logistic standardized coefficients
+    base = getattr(model, "base_estimator", None) or getattr(model, "estimator", None)
+    if isinstance(base, LogisticRegression):
+        try:
+            beta = base.coef_.ravel()
+            sigma = X_tr.std(axis=0).replace(0, np.nan).values
+            rows = []
+            for f, b, s in zip(feats, beta, sigma):
+                if not np.isfinite(b):
+                    continue
+                or1 = float(np.exp(b * (float(s) if np.isfinite(s) else 1.0)))
+                rows.append({"name": f, "coef": float(b), "or_at_1": or1, "score": float(abs(b))})
+            rows.sort(key=lambda d: abs(d["score"]), reverse=True)
+            return rows[:top_k]
+        except Exception:
+            pass
+
+    # Fallback: permutation on test (optional)
+    try:
+        from sklearn.inspection import permutation_importance
+
+        if len(X_te) >= 20:
+            res = permutation_importance(
+                model,
+                X_te.values,
+                y_tr.iloc[-len(X_te):].values,
+                n_repeats=5,
+                random_state=42,
+                scoring="neg_brier_score",
+            )
+            imp = res.importances_mean
+            rows = [
+                {"name": f, "coef": float(v), "or_at_1": None, "score": float(abs(v))}
+                for f, v in zip(feats, imp)
+                if np.isfinite(v)
+            ]
+            rows.sort(key=lambda d: abs(d["score"]), reverse=True)
+            return rows[:top_k]
+    except Exception:
+        pass
+
+    return out

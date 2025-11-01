@@ -4,7 +4,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
 
@@ -14,6 +14,7 @@ from .core.model import (
     time_split,
     train_select_and_evaluate,
     predict_today,
+    compute_reverse_importances,
 )
 from .core.data import fetch_ohlcv, build_features, label_crash
 from .core.utils import get_logger
@@ -22,9 +23,9 @@ from .core.utils import get_logger
 class RunParams(BaseModel):
     symbols: List[str] = Field(..., example=["ETH/USDT", "SOL/USDT"])
     timeframe: str = Field("1d")
-    lookback: int = Field(1200, ge=50)
+    lookback: int = Field(1200, ge=400)
     horizon: int = Field(10, ge=5, le=30)
-    crash_drop: float = Field(0.2, gt=0.0, lt=1.0)
+    crash_drop: float = Field(0.2, ge=0.05, le=0.60)
     mode: str = Field("basic")
 
     @validator("symbols")
@@ -71,6 +72,7 @@ def _run_pipeline(params: RunParams) -> Dict[str, Any]:
     # Hard cap to keep request < ~5 minutes on Render
     MAX_SECONDS = int(os.environ.get("MAX_RUNTIME_SECONDS", "300"))
 
+    last_report: Dict[str, Any] = report
     for sym in params.symbols:
         st_sym = time.time()
         logger.info("stage=data_load symbol=%s action=fetch_ohlcv", sym)
@@ -133,6 +135,7 @@ def _run_pipeline(params: RunParams) -> Dict[str, Any]:
             "model": best_name,
         }
         report["policy_hint"][sym] = pol.label
+        last_report = report
 
         logger.info(
             "stage=symbol_done symbol=%s total_ms=%s", sym, int((time.time()-st_sym)*1000)
@@ -144,6 +147,11 @@ def _run_pipeline(params: RunParams) -> Dict[str, Any]:
 
     logger.info("stage=done total_ms=%s", int((time.time()-start_all)*1000))
 
+    # Store last report in app state for GET /last_report
+    try:
+        app.state.last_report = last_report
+    except Exception:
+        pass
     return report
 
 
@@ -173,6 +181,42 @@ def run_endpoint(
 ) -> Dict[str, Any]:
     _auth_guard(x_api_key)
     return _run_pipeline(body)
+
+
+@app.get("/last_report")
+def last_report() -> Dict[str, Any]:
+    lr = getattr(app.state, "last_report", None)
+    if not lr:
+        raise HTTPException(status_code=404, detail="No report yet")
+    return lr
+
+
+class ReverseParams(BaseModel):
+    symbol: str
+    horizon: int = Field(10, ge=5, le=30)
+    crash_drop: float = Field(0.2, ge=0.05, le=0.60)
+    top_k: int = Field(10, ge=1, le=30)
+
+
+@app.post("/v1/reverse")
+def reverse_endpoint(
+    body: ReverseParams,
+    x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
+) -> Dict[str, Any]:
+    _auth_guard(x_api_key)
+    # Minimal reverse using the real pipeline pieces, single symbol flow
+    df = fetch_ohlcv(body.symbol, "1d", 1200)
+    feats = build_features(df)
+    feats["y"] = label_crash(feats["close"], horizon=body.horizon, crash_drop=body.crash_drop)
+    data = feats.dropna()
+    feature_cols = [c for c in data.columns if c not in ("open", "high", "low", "volume", "y")]
+    X_all = data[feature_cols]
+    y_all = data["y"].astype(int)
+    X_tr, y_tr, X_te, y_te = time_split(X_all, y_all)
+    best_name, best_model, _ = train_select_and_evaluate(X_tr, y_tr, X_te, y_te, random_state=42)
+
+    reverse = compute_reverse_importances(best_model, X_tr, y_tr, X_te, top_k=body.top_k)
+    return {"features": reverse, "model": best_name, "explain": "Reverse feature importance"}
 
 
 if __name__ == "__main__":  # pragma: no cover
