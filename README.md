@@ -1,4 +1,6 @@
-# CrashRiskLab API (stub)
+# CrashRiskLab API
+
+![CI](https://github.com/PNP06/crashrisklab-api/actions/workflows/ci.yml/badge.svg)
 
 Minimal FastAPI backend that mimics the CrashRiskLab report generation with executable stubs. Useful to integrate a UI or test pipelines without market/network dependencies.
 
@@ -37,7 +39,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 }
 ```
 
-Returns a minimal `report.json`-like payload with per-symbol `p_crash`, `confidence`, `metrics`, and `policy_hint`.
+Returns a `report.json`-like payload with per-symbol `p_crash`, `confidence`, `metrics` (AUC/PR-AUC/Brier), and `policy_hint`.
 
 ## Render deployment (live)
 
@@ -87,4 +89,26 @@ Then call:
 
 ```
 curl -H "X-API-Key: secret" http://localhost:8000/health
+
+## Reverse Model Viewer
+
+- Endpoint: `POST /v1/reverse` → returns top features with fields:
+  - `name`, `coef`, `direction` (+/−), `or_at_1` (OR@1σ), `score` (normalized 0..1), `source` ∈ {`logistic_stdcoef`,`tree_importance`,`permutation`}.
+
+## Plots (optional)
+
+- Set `EXPORT_PLOTS=1` to export calibration reliability diagrams to `outputs/` and include paths in the report under `plots`.
+- Static mount available at `/outputs/...` for direct download.
+
+## Frontend (GitHub Pages)
+
+- Pages: https://pnp06.github.io/crashrisklab-api/
+- `frontend/app.js` already points to `https://crashrisklab-api.onrender.com`.
+
+## Commands
+
+- pre-commit install
+- pytest -q
+- uvicorn backend.main:app --host 0.0.0.0 --port 8000
+- docker build -t crashrisklab-api . && docker run -p 8000:8000 crashrisklab-api
 ```

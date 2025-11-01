@@ -24,7 +24,7 @@ const els = {
   tabBtnCrash: document.getElementById("tab-btn-crash"),
   tabBtnReverse: document.getElementById("tab-btn-reverse"),
   tabCrash: document.getElementById("tab-crash"),
-  tabReverse: document.getElementById("tab-reverse"),
+  tabReverse: document.getElementById("tab-reverse"),\n  downloadBtn: document.getElementById("download-report"),
   // Reverse tab
   revSymbol: document.getElementById("rev_symbol"),
   revRunBtn: document.getElementById("rev-run-btn"),
@@ -32,7 +32,7 @@ const els = {
   revError: document.getElementById("rev_error"),
   revLoading: document.getElementById("rev_loading"),
   revBody: document.getElementById("reverse-body"),
-  revChartCanvas: document.getElementById("reverse-chart"),
+  revChartCanvas: document.getElementById("reverse-chart"),\n  revCopyBtn: document.getElementById("rev-copy-btn"),
 };
 
 function log(msg) {
@@ -287,5 +287,7 @@ async function runReverseAnalysis() {
 }
 
 if (els.revRunBtn) {
-  els.revRunBtn.addEventListener("click", runReverseAnalysis);
+  els.revRunBtn.addEventListener("click", runReverseAnalysis);\n}\n\nif (els.revCopyBtn) {\n  els.revCopyBtn.addEventListener("click", () => {\n    const rows = Array.from(els.revBody.querySelectorAll("tr")).map(tr =>\n      Array.from(tr.children).map(td => td.textContent.trim()).join("\t")\n    );\n    const header = ["Feature","Coefficient","OR@1","Score","Source","Explication"].join("\t");\n    const txt = [header, ...rows].join("\n");\n    navigator.clipboard.writeText(txt).catch(()=>{});\n  });
 }
+
+\nif (els.downloadBtn) {\n  els.downloadBtn.addEventListener('click', async () => {\n    try {\n      const res = await fetch(${API_URL}/last_report);\n      if(!res.ok) throw new Error(HTTP );\n      const data = await res.json();\n      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});\n      const url = URL.createObjectURL(blob);\n      const a = document.createElement('a');\n      a.href = url; a.download = 'report.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);\n    } catch(err){ log(ERREUR download: ); }\n  });\n}\n

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional\nfrom pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +17,9 @@ from .core.model import (
     compute_reverse_importances,
 )
 from .core.data import fetch_ohlcv, build_features, label_crash
-from .core.utils import get_logger
+from .core.utils import get_logger\nfrom .middleware_observe import observability_middleware\nfrom .middleware_rate_limit import rate_limit_middleware\nfrom starlette.staticfiles import StaticFiles`nfrom .core.validation_temps import seed_all
+from sklearn.calibration import calibration_curve
+import matplotlib.pyplot as plt
 
 
 class RunParams(BaseModel):
@@ -63,6 +65,7 @@ def _run_pipeline(params: RunParams) -> Dict[str, Any]:
         "symbols": {},
         "policy_hint": {},
     }
+    report["validation"] = "walk_forward" if os.environ.get("WALK_FORWARD","" ).strip() in ("1","true","yes","on") else "holdout"
 
     logger.info(
         "stage=start params symbols=%s timeframe=%s lookback=%s horizon=%s drop=%s",
@@ -77,7 +80,10 @@ def _run_pipeline(params: RunParams) -> Dict[str, Any]:
         st_sym = time.time()
         logger.info("stage=data_load symbol=%s action=fetch_ohlcv", sym)
         # 1) Fetch OHLCV from exchange
-        df = fetch_ohlcv(sym, params.timeframe, params.lookback)
+        try:
+            df = fetch_ohlcv(sym, params.timeframe, params.lookback)
+        except Exception as e:
+            raise HTTPException(status_code=503, detail={"error": "data_unavailable", "symbol": sym, "reason": str(type(e).__name__)})
         logger.info("stage=data_loaded symbol=%s rows=%s elapsed_ms=%s", sym, len(df), int((time.time()-st_sym)*1000))
 
         # 2) Build features and label without leakage (time-t only)
@@ -112,6 +118,28 @@ def _run_pipeline(params: RunParams) -> Dict[str, Any]:
             "stage=model_ready symbol=%s model=%s auc=%.3f pr=%.3f brier=%.4f elapsed_ms=%s",
             sym, best_name, float(metrics.get("auc_roc", float("nan"))), float(metrics.get("auc_pr", float("nan"))), float(metrics.get("brier", float("nan"))), int((time.time()-st_train)*1000)
         )
+
+        # Optional reliability plot export
+        try:
+            if os.environ.get("EXPORT_PLOTS", "").strip() in ("1","true","yes","on"):
+                probs = best_model.predict_proba(X_te.values)[:,1] if not X_te.empty else best_model.predict_proba(X_tr.values)[:,1]
+                y_plot = y_te.values if not X_te.empty else y_tr.values
+                prob_true, prob_pred = calibration_curve(y_plot, probs, n_bins=10, strategy='uniform')
+                Path('outputs').mkdir(parents=True, exist_ok=True)
+                out_png = Path('outputs') / f"calibration_{sym.replace('/','_')}.png"
+                plt.figure(figsize=(5,4))
+                plt.plot(prob_pred, prob_true, 's-', label='model')
+                plt.plot([0,1],[0,1],'k--', label='ideal')
+                plt.xlabel('Predicted probability')
+                plt.ylabel('Observed frequency')
+                plt.legend()
+                plt.tight_layout()
+                plt.savefig(out_png)
+                plt.close()
+                # attach to report
+                report.setdefault('plots', {})[sym] = { 'calibration': f"/outputs/{out_png.name}" }
+        except Exception:
+            pass
 
         # 5) Predict today (use latest available row from test or train)
         st_pred = time.time()
@@ -156,6 +184,9 @@ def _run_pipeline(params: RunParams) -> Dict[str, Any]:
 
 
 app = FastAPI(title="CrashRiskLab API", version="0.1.0")
+app.middleware("http")(observability_middleware)
+app.middleware("http")(rate_limit_middleware)
+app.mount("/outputs", StaticFiles(directory=str(Path("outputs"))), name="outputs")
 
 # CORS setup from env
 cors_origins = os.environ.get("CORS_ORIGINS", "*")
@@ -223,3 +254,7 @@ if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
     uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=False)
+
+
+
+

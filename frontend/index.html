@@ -158,7 +158,7 @@
         </section>
 
         <section class="panel-inner">
-          <h2>Resultats</h2>
+          <h2>Resultats</h2>\n          <div class="actions"><button type="button" id="download-report" class="secondary">Télécharger report.json</button></div>
           <div class="table-wrap">
             <table id="results">
               <thead>
@@ -201,15 +201,14 @@
                 <th>Feature</th>
                 <th>Coefficient</th>
                 <th>OR@1</th>
-                <th>Score</th>
-                <th>Explication</th>
+                <th>Score</th>\n                <th>Source</th>\n                <th>Explication</th>
               </tr>
             </thead>
             <tbody id="reverse-body"></tbody>
           </table>
         </div>
 
-        <div class="chart-wrap">
+        <div class="actions" style="margin-top:8px">\n          <button type="button" id="rev-copy-btn" class="secondary">Copier</button>\n        </div>\n\n        <div class="chart-wrap">
           <canvas id="reverse-chart" height="320"></canvas>
         </div>
       </section>
@@ -240,3 +239,5 @@
     <script type="module" src="./app.js"></script>
   </body>
   </html>
+
+

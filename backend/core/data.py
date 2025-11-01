@@ -5,6 +5,10 @@ from typing import List, Literal
 import numpy as np
 import pandas as pd
 import ccxt
+import os
+from .utils import LOGGER
+
+_CB_STATE: dict[tuple[str, str], dict[str, float]] = {}
 
 
 def synth_ohlcv(symbol: str, timeframe: Literal["1d", "1h", "4h"] = "1d", lookback: int = 1200) -> pd.DataFrame:
@@ -47,6 +51,11 @@ def fetch_ohlcv(symbol: str, timeframe: str, lookback: int) -> pd.DataFrame:
     Returns UTC-indexed DataFrame [open, high, low, close, volume] of length up to `lookback`.
     """
     exchange = ccxt.binance({"enableRateLimit": True})
+    try:
+        timeout_ms = int(os.environ.get("CCXT_TIMEOUT_MS", "15000") or "15000")
+        exchange.timeout = timeout_ms
+    except Exception:
+        pass
     limit = 1000
     tf_ms = exchange.parse_timeframe(timeframe) * 1000
 
@@ -55,8 +64,28 @@ def fetch_ohlcv(symbol: str, timeframe: str, lookback: int) -> pd.DataFrame:
     since_ms = int(since_dt.timestamp() * 1000)
 
     rows: List[List[float]] = []
+    key = (symbol.upper(), timeframe)
+    state = _CB_STATE.setdefault(key, {"fails": 0.0, "ts": 0.0})
+    if state["fails"] >= 5:
+        raise RuntimeError(f"circuit-open {symbol} {timeframe}")
+
+    attempts = 0
     while True:
-        batch = exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=since_ms, limit=limit)
+        try:
+            batch = exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=since_ms, limit=limit)
+        except Exception as e:
+            attempts += 1
+            state["fails"] += 1
+            back = min(4, attempts)
+            LOGGER.warning("ccxt_fetch_fail symbol=%s tf=%s attempt=%s err=%s", symbol, timeframe, attempts, type(e).__name__)
+            if attempts >= 3:
+                raise
+            # exponential backoff (1s,2s,4s)
+            cc = back
+            import time as _t
+
+            _t.sleep(cc)
+            continue
         if not batch:
             break
         rows.extend(batch)
@@ -65,6 +94,8 @@ def fetch_ohlcv(symbol: str, timeframe: str, lookback: int) -> pd.DataFrame:
             break
         if len(rows) >= lookback + 2000:
             break
+    # reset fails on success
+    state["fails"] = 0.0
 
     if not rows:
         raise RuntimeError(f"No OHLCV for {symbol} {timeframe}")

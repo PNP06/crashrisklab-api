@@ -197,7 +197,9 @@ def compute_reverse_importances(
                 "name": f,
                 "coef": float(w),
                 "or_at_1": None,
-                "score": float(w / total),
+                "score": float(abs(w)) / total,
+                "direction": "+" if w >= 0 else "-",
+                "source": "tree_importance",
             }
             for f, w in zip(feats, fi)
             if np.isfinite(w)
@@ -216,7 +218,14 @@ def compute_reverse_importances(
                 if not np.isfinite(b):
                     continue
                 or1 = float(np.exp(b * (float(s) if np.isfinite(s) else 1.0)))
-                rows.append({"name": f, "coef": float(b), "or_at_1": or1, "score": float(abs(b))})
+                rows.append({
+                    "name": f,
+                    "coef": float(b),
+                    "or_at_1": or1,
+                    "score": float(abs(b)) / (float(np.sum(np.abs(beta))) or 1.0),
+                    "direction": "+" if b >= 0 else "-",
+                    "source": "logistic_stdcoef",
+                })
             rows.sort(key=lambda d: abs(d["score"]), reverse=True)
             return rows[:top_k]
         except Exception:
@@ -236,8 +245,16 @@ def compute_reverse_importances(
                 scoring="neg_brier_score",
             )
             imp = res.importances_mean
+            total = float(np.sum(np.abs(imp))) or 1.0
             rows = [
-                {"name": f, "coef": float(v), "or_at_1": None, "score": float(abs(v))}
+                {
+                    "name": f,
+                    "coef": float(v),
+                    "or_at_1": None,
+                    "score": float(abs(v)) / total,
+                    "direction": "+" if v >= 0 else "-",
+                    "source": "permutation",
+                }
                 for f, v in zip(feats, imp)
                 if np.isfinite(v)
             ]
