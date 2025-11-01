@@ -39,6 +39,36 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 Returns a minimal `report.json`-like payload with per-symbol `p_crash`, `confidence`, `metrics`, and `policy_hint`.
 
+## Render deployment (live)
+
+- Service name: `crashrisklab-api`
+- Public URL: `https://crashrisklab-api.onrender.com`
+- Environment: Docker (built from GitHub repo `PNP06/crashrisklab-api`), branch `main`, region `Frankfurt (EU Central)`, plan `Free`, auto-deploy on each commit.
+- Environment variables:
+  - `API_KEY=demo1234`
+  - `CORS_ORIGINS=*`
+  - `HEALTH_PATH=/health`
+
+Health check
+
+- `GET /health` → `{ "status": "ok" }` when the container is up.
+
+Run example
+
+```
+POST /run
+{
+  "symbols": ["ETH/USDT", "SOL/USDT"],
+  "timeframe": "1d",
+  "lookback": 1200,
+  "horizon": 10,
+  "crash_drop": 0.2,
+  "mode": "basic"
+}
+```
+
+Response: a `report.json`-like object with `p_crash`, `confidence`, `AUC`, `PR-AUC`, `Brier`, and `policy_hint`.
+
 ## Docker
 
 Build:
@@ -58,4 +88,3 @@ Then call:
 ```
 curl -H "X-API-Key: secret" http://localhost:8000/health
 ```
-

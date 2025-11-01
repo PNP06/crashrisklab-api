@@ -1,9 +1,9 @@
 // app.js (ES module)
 import { featureExplanations } from "./reverse_explain.js";
 
-// TODO: Remplacer par l'URL exacte de votre service Render
-// Exemple: const API_URL = "https://crashrisklab.onrender.com";
-const API_URL = "https://<TON_SERVICE_RENDER>.onrender.com";
+// URL de l'API Render (mise à jour)
+// Service: crashrisklab-api (Render)
+export const API_URL = "https://crashrisklab-api.onrender.com";
 
 const els = {
   // Crash tab
