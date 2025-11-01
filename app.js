@@ -1,10 +1,12 @@
-"use strict";
+// app.js (ES module)
+import { featureExplanations } from "./reverse_explain.js";
 
 // TODO: Remplacer par l'URL exacte de votre service Render
 // Exemple: const API_URL = "https://crashrisklab.onrender.com";
 const API_URL = "https://<TON_SERVICE_RENDER>.onrender.com";
 
 const els = {
+  // Crash tab
   form: document.getElementById("run-form"),
   btn: document.getElementById("run-btn"),
   console: document.getElementById("console"),
@@ -18,6 +20,19 @@ const els = {
   explainBtn: document.getElementById("explain-btn"),
   modal: document.getElementById("modal"),
   modalClose: document.getElementById("close-modal"),
+  // Tabs
+  tabBtnCrash: document.getElementById("tab-btn-crash"),
+  tabBtnReverse: document.getElementById("tab-btn-reverse"),
+  tabCrash: document.getElementById("tab-crash"),
+  tabReverse: document.getElementById("tab-reverse"),
+  // Reverse tab
+  revSymbol: document.getElementById("rev_symbol"),
+  revRunBtn: document.getElementById("rev-run-btn"),
+  revStatus: document.getElementById("rev_status"),
+  revError: document.getElementById("rev_error"),
+  revLoading: document.getElementById("rev_loading"),
+  revBody: document.getElementById("reverse-body"),
+  revChartCanvas: document.getElementById("reverse-chart"),
 };
 
 function log(msg) {
@@ -137,3 +152,140 @@ els.modal.addEventListener("click", (e) => {
   }
 });
 
+// Tabs handling
+function showTab(which) {
+  if (which === "crash") {
+    els.tabCrash.hidden = false;
+    els.tabReverse.hidden = true;
+    els.tabBtnCrash.classList.add("active");
+    els.tabBtnReverse.classList.remove("active");
+  } else {
+    els.tabCrash.hidden = true;
+    els.tabReverse.hidden = false;
+    els.tabBtnCrash.classList.remove("active");
+    els.tabBtnReverse.classList.add("active");
+  }
+}
+if (els.tabBtnCrash && els.tabBtnReverse) {
+  els.tabBtnCrash.addEventListener("click", () => showTab("crash"));
+  els.tabBtnReverse.addEventListener("click", () => showTab("reverse"));
+}
+
+// Reverse Model Viewer
+let revChart = null;
+
+function setReverseLoading(on, msg = "Chargement...") {
+  els.revLoading.hidden = !on;
+  els.revStatus.textContent = on ? msg : "";
+  els.revError.hidden = true;
+  if (on) els.revError.textContent = "";
+}
+
+function setReverseError(message) {
+  els.revError.hidden = false;
+  els.revError.textContent = message;
+  els.revStatus.textContent = "";
+  els.revLoading.hidden = true;
+}
+
+function renderReverseTable(features) {
+  els.revBody.innerHTML = "";
+  for (const f of features) {
+    const tr = document.createElement("tr");
+    const explain = f.explain || featureExplanations[f.name] || "(non documente)";
+    const coefStr = typeof f.coef === "number" && isFinite(f.coef) ? f.coef.toFixed(3) : "n/a";
+    const orStr = typeof f.or_at_1 === "number" && isFinite(f.or_at_1) ? f.or_at_1.toFixed(3) : "n/a";
+    const scoreStr = typeof f.score === "number" && isFinite(f.score) ? f.score.toFixed(4) : "n/a";
+    tr.innerHTML = `
+      <td>${f.name}</td>
+      <td>${coefStr}</td>
+      <td>${orStr}</td>
+      <td>${scoreStr}</td>
+      <td>${explain}</td>
+    `;
+    els.revBody.appendChild(tr);
+  }
+}
+
+function renderReverseChart(features) {
+  const labels = features.map(f => f.name);
+  const scores = features.map(f => (typeof f.score === "number" ? f.score : 0));
+  const colors = features.map(f => (typeof f.coef === "number" && f.coef >= 0 ? "#16a34a" : "#dc2626"));
+
+  if (revChart) {
+    revChart.destroy();
+    revChart = null;
+  }
+  const ctx = els.revChartCanvas.getContext("2d");
+  revChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Score",
+          data: scores,
+          backgroundColor: colors,
+        },
+      ],
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { title: { display: true, text: "Score" } },
+        y: { title: { display: true, text: "Feature" } },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `Score: ${ctx.parsed.x.toFixed ? ctx.parsed.x.toFixed(4) : ctx.parsed.x}`,
+          },
+        },
+      },
+    },
+  });
+}
+
+async function runReverseAnalysis() {
+  try {
+    const symbol = (els.revSymbol.value || "ETH/USDT").trim().toUpperCase();
+    // Reuse horizon/crash_drop from main inputs
+    const horizon = parseInt(els.horizon.value, 10) || 10;
+    const rawDrop = parseFloat(els.crashDropInput.value);
+    const crash_drop = isFinite(rawDrop) ? (rawDrop > 1 ? rawDrop / 100.0 : rawDrop) : 0.2;
+
+    setReverseLoading(true, "Calcul du reverse en cours...");
+
+    const body = { symbol, horizon, crash_drop, top_k: 10 };
+    const headers = { "Content-Type": "application/json" };
+    const key = els.apiKey.value.trim();
+    if (key) headers["X-API-Key"] = key;
+
+    const res = await fetch(`${API_URL}/v1/reverse`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const ct = res.headers.get("content-type") || "";
+      const detail = await (ct.includes("application/json") ? res.json() : res.text());
+      throw new Error(`HTTP ${res.status}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`);
+    }
+    const payload = await res.json();
+    const features = Array.isArray(payload.features) ? payload.features : [];
+    setReverseLoading(false);
+    els.revStatus.textContent = payload.explain || `Modele: ${payload.model || "n/a"}`;
+
+    renderReverseTable(features);
+    renderReverseChart(features);
+  } catch (err) {
+    setReverseError(err.message || String(err));
+  }
+}
+
+if (els.revRunBtn) {
+  els.revRunBtn.addEventListener("click", runReverseAnalysis);
+}
