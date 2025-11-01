@@ -1,1 +1,29 @@
-from fastapi.testclient import TestClient\nfrom backend.main import app, RunParams\n\nclient = TestClient(app)\n\ndef test_health():\n    r = client.get('/health')\n    assert r.status_code == 200\n    assert r.json().get('status') == 'ok'\n\n\ndef test_run_offline_monkeypatch(monkeypatch):\n    # Monkeypatch fetch_ohlcv to avoid network\n    from backend.core import data as core_data\n    def fake_fetch(symbol, timeframe, lookback):\n        return core_data.synth_ohlcv(symbol, timeframe, lookback)\n    monkeypatch.setattr(core_data, 'fetch_ohlcv', fake_fetch)\n\n    body = {\n        'symbols': ['ETH/USDT','SOL/USDT'],\n        'timeframe': '1d',\n        'lookback': 500,\n        'horizon': 10,\n        'crash_drop': 0.2,\n        'mode': 'basic'\n    }\n    r = client.post('/run', json=body)\n    assert r.status_code == 200\n    js = r.json()\n    assert 'symbols' in js and isinstance(js['symbols'], dict)\n
+from fastapi.testclient import TestClient
+from backend.main import app
+
+client = TestClient(app)
+
+def test_health():
+    r = client.get('/health')
+    assert r.status_code == 200
+    assert r.json().get('status') == 'ok'
+
+def test_run_offline_monkeypatch(monkeypatch):
+    # Monkeypatch fetch_ohlcv to avoid network
+    from backend.core import data as core_data
+    def fake_fetch(symbol, timeframe, lookback):
+        return core_data.synth_ohlcv(symbol, timeframe, lookback)
+    monkeypatch.setattr(core_data, 'fetch_ohlcv', fake_fetch)
+
+    body = {
+        'symbols': ['ETH/USDT', 'SOL/USDT'],
+        'timeframe': '1d',
+        'lookback': 500,
+        'horizon': 10,
+        'crash_drop': 0.2,
+        'mode': 'basic'
+    }
+    r = client.post('/run', json=body)
+    assert r.status_code == 200
+    js = r.json()
+    assert 'symbols' in js and isinstance(js['symbols'], dict)
