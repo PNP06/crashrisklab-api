@@ -1,61 +1,38 @@
-# CrashRiskLab API (stub)
+# CrashRiskLab Frontend (GitHub Pages)
 
-Minimal FastAPI backend that mimics the CrashRiskLab report generation with executable stubs. Useful to integrate a UI or test pipelines without market/network dependencies.
+Page statique HTML/JS/CSS appelant l'API Render CrashRiskLab.
 
-## Run local
+## Configuration
 
-- Python 3.11+
-- Install deps:
-
-```
-pip install -r requirements.txt
-```
-
-- Launch server:
+- Ouvrez `frontend/app.js` et remplacez :
 
 ```
-uvicorn backend.main:app --host 0.0.0.0 --port 8000
+const API_URL = "https://<TON_SERVICE_RENDER>.onrender.com";
 ```
 
-- Optional env vars:
-- `API_KEY` (default empty): if set, requests must include header `X-API-Key: <API_KEY>`
-- `CORS_ORIGINS` (default `*`): comma-separated origins for CORS
+par l'URL exacte de votre service Render (ex: `https://crashrisklab.onrender.com`).
 
-## Endpoints
+## Publication via gh-pages
 
-- `GET /health` → `{ "status": "ok" }`
-- `POST /run` body example:
+À la racine du repo, vous pouvez utiliser `gh-pages` :
 
 ```
-{
-  "symbols": ["ETH/USDT", "SOL/USDT"],
-  "timeframe": "1d",
-  "lookback": 1200,
-  "horizon": 10,
-  "crash_drop": 0.2,
-  "mode": "basic"
-}
+npm install --save-dev gh-pages
+npm run deploy
 ```
 
-Returns a minimal `report.json`-like payload with per-symbol `p_crash`, `confidence`, `metrics`, and `policy_hint`.
+Le script `deploy` publie `frontend/` dans la branche `gh-pages`.
 
-## Docker
-
-Build:
+Sinon, publiez manuellement avec un worktree:
 
 ```
-docker build -t crashrisklab-api ./crashrisklab-api
+git worktree add -B gh-pages ../crashrisklab-gh-pages
+robocopy frontend ..\crashrisklab-gh-pages /E
+cd ..\crashrisklab-gh-pages
+git add .
+git commit -m "Publish frontend to GitHub Pages"
+git push -u origin gh-pages
 ```
 
-Run:
-
-```
-docker run --rm -p 8000:8000 -e API_KEY=secret -e CORS_ORIGINS=* crashrisklab-api
-```
-
-Then call:
-
-```
-curl -H "X-API-Key: secret" http://localhost:8000/health
-```
+Activez ensuite GitHub Pages : Settings → Pages → Branch: `gh-pages` / root.
 
