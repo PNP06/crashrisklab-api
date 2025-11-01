@@ -98,4 +98,145 @@
     <script src="./app.js"></script>
   </body>
   </html>
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CrashRiskLab Frontend</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>CrashRiskLab</h1>
+      <nav class="tabs">
+        <button id="tab-btn-crash" class="tab active" type="button">Analyse Crash</button>
+        <button id="tab-btn-reverse" class="tab" type="button">Reverse Model Viewer</button>
+      </nav>
+    </header>
 
+    <main>
+      <!-- Tab: Analyse Crash (default) -->
+      <section id="tab-crash" class="panel tab-section">
+        <h2>Parametres</h2>
+        <form id="run-form">
+          <div class="grid">
+            <label>
+              Symboles (separes par des virgules)
+              <input type="text" id="symbols" placeholder="ETH/USDT,SOL/USDT" value="ETH/USDT,SOL/USDT" />
+            </label>
+            <label>
+              Timeframe
+              <input type="text" id="timeframe" value="1d" />
+            </label>
+            <label>
+              Lookback (jours)
+              <input type="number" id="lookback" value="1200" min="100" />
+            </label>
+            <label>
+              Horizon (jours)
+              <input type="number" id="horizon" value="10" min="5" max="30" />
+            </label>
+            <label>
+              Crash drop (% ou fraction)
+              <input type="number" id="crash_drop_input" value="20" step="any" min="0" placeholder="ex: 20 ou 0.2" title="Accepte 20 (pour 20%) ou 0.2 (fraction)" />
+            </label>
+            <label>
+              API Key (optionnel)
+              <input type="password" id="api_key" placeholder="X-API-Key" />
+            </label>
+          </div>
+          <div class="actions">
+            <button type="submit" id="run-btn">Run</button>
+            <button type="button" id="explain-btn" class="secondary">Explication</button>
+          </div>
+        </form>
+
+        <section class="panel-inner">
+          <h2>Console / logs</h2>
+          <pre id="console" class="console" aria-live="polite"></pre>
+        </section>
+
+        <section class="panel-inner">
+          <h2>Resultats</h2>
+          <div class="table-wrap">
+            <table id="results">
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th>p_crash</th>
+                  <th>confidence</th>
+                  <th>AUC</th>
+                  <th>PR-AUC</th>
+                  <th>Brier</th>
+                  <th>Policy</th>
+                </tr>
+              </thead>
+              <tbody id="results-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <!-- Tab: Reverse Model Viewer -->
+      <section id="tab-reverse" class="panel tab-section" hidden>
+        <h2>Reverse Model Viewer</h2>
+        <div class="grid">
+          <label>
+            Symbol
+            <input type="text" id="rev_symbol" value="ETH/USDT" />
+          </label>
+          <div class="actions">
+            <button type="button" id="rev-run-btn">Analyser modele</button>
+          </div>
+        </div>
+        <div id="rev_status" class="status muted"></div>
+        <div id="rev_error" class="error" hidden></div>
+        <div id="rev_loading" class="loading" hidden>Chargement...</div>
+
+        <div class="table-wrap">
+          <table id="reverse-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Coefficient</th>
+                <th>OR@1</th>
+                <th>Score</th>
+                <th>Explication</th>
+              </tr>
+            </thead>
+            <tbody id="reverse-body"></tbody>
+          </table>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="reverse-chart" height="320"></canvas>
+        </div>
+      </section>
+    </main>
+
+    <div id="modal" class="modal" hidden>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Comment l'analyse fonctionne (6 etapes)</h3>
+        </div>
+        <div class="modal-body">
+          <ol>
+            <li>Donnees: telechargement de l'historique OHLCV (Binance via ccxt).</li>
+            <li>Features: construction sans fuite d'information (retours, volatibilite, RSI, distances MAs, drawdown...).</li>
+            <li>Split temporel: train/test chronologique en conservant 2 classes en train.</li>
+            <li>Apprentissage: regression logistique (equilibree) et gradient boosting; selection par Brier (tie-break AUC).</li>
+            <li>Prediction du jour: p_crash + confidence = 1 - Brier; generation d'un policy_hint.</li>
+            <li>Report: JSON par symbole avec p_crash, metrics (AUC/PR-AUC/Brier) et policy.</li>
+          </ol>
+        </div>
+        <div class="modal-footer">
+          <button id="close-modal" class="secondary">Fermer</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+  </html>
