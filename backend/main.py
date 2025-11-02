@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any, Dict, List, Optional\nfrom pathlib import Path
+from typing import Any, Dict, List, Optional
+from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +18,11 @@ from .core.model import (
     compute_reverse_importances,
 )
 from .core.data import fetch_ohlcv, build_features, label_crash
-from .core.utils import get_logger\nfrom .middleware_observe import observability_middleware\nfrom .middleware_rate_limit import rate_limit_middleware\nfrom starlette.staticfiles import StaticFiles`nfrom .core.validation_temps import seed_all
+from .core.utils import get_logger
+from .middleware_observe import observability_middleware
+from .middleware_rate_limit import rate_limit_middleware
+from starlette.staticfiles import StaticFiles
+from .core.validation_temps import seed_all
 from sklearn.calibration import calibration_curve
 import matplotlib.pyplot as plt
 
