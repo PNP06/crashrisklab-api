@@ -15,18 +15,16 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install deps
-        working-directory: crashrisklab-api
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r crashrisklab-api/requirements.txt
           pip install pre-commit
       - name: Lint & type-check
-        working-directory: crashrisklab-api
         run: |
-          pre-commit run --all-files || true
+          (cd crashrisklab-api && pre-commit run --all-files || true)
       - name: Tests
-        working-directory: crashrisklab-api
-        run: pytest -q
+        run: |
+          cd crashrisklab-api
+          pytest -q
       - name: Docker build
-        working-directory: crashrisklab-api
-        run: docker build -t crashrisklab-api:ci .
+        run: docker build -t crashrisklab-api:ci ./crashrisklab-api
