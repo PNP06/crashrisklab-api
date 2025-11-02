@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 import time
@@ -191,12 +191,14 @@ def _run_pipeline(params: RunParams) -> Dict[str, Any]:
 app = FastAPI(title="CrashRiskLab API", version="0.1.0")
 app.middleware("http")(observability_middleware)
 app.middleware("http")(rate_limit_middleware)
-# Ensure outputs directory exists (for static mount); do not fail if missing
+# Outputs static mount: be defensive across Starlette versions
 try:
-    Path("outputs").mkdir(parents=True, exist_ok=True)
+    outdir = Path(os.environ.get("OUTPUTS_DIR", "outputs"))
+    outdir.mkdir(parents=True, exist_ok=True)
+    app.mount("/outputs", StaticFiles(directory=str(outdir)), name="outputs")
 except Exception:
+    # If mount fails (older Starlette or FS constraints), continue without static mount
     pass
-app.mount("/outputs", StaticFiles(directory=str(Path("outputs")), check_dir=False), name="outputs")
 
 # CORS setup from env
 cors_origins = os.environ.get("CORS_ORIGINS", "*")
