@@ -191,7 +191,12 @@ def _run_pipeline(params: RunParams) -> Dict[str, Any]:
 app = FastAPI(title="CrashRiskLab API", version="0.1.0")
 app.middleware("http")(observability_middleware)
 app.middleware("http")(rate_limit_middleware)
-app.mount("/outputs", StaticFiles(directory=str(Path("outputs"))), name="outputs")
+# Ensure outputs directory exists (for static mount); do not fail if missing
+try:
+    Path("outputs").mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
+app.mount("/outputs", StaticFiles(directory=str(Path("outputs")), check_dir=False), name="outputs")
 
 # CORS setup from env
 cors_origins = os.environ.get("CORS_ORIGINS", "*")
