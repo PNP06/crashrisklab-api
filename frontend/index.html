@@ -1,104 +1,4 @@
-<!doctype html>
-<html lang="fr">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CrashRiskLab – Frontend</title>
-    <link rel="stylesheet" href="./style.css" />
-  </head>
-  <body>
-    <header>
-      <h1>CrashRiskLab – Analyse de risque de crash</h1>
-    </header>
-
-    <main>
-      <section class="panel">
-        <h2>Paramètres</h2>
-        <form id="run-form">
-          <div class="grid">
-            <label>
-              Symboles (séparés par des virgules)
-              <input type="text" id="symbols" placeholder="ETH/USDT,SOL/USDT" value="ETH/USDT,SOL/USDT" />
-            </label>
-            <label>
-              Timeframe
-              <input type="text" id="timeframe" value="1d" />
-            </label>
-            <label>
-              Lookback (jours)
-              <input type="number" id="lookback" value="1200" min="100" />
-            </label>
-            <label>
-              Horizon (jours)
-              <input type="number" id="horizon" value="10" min="5" max="30" />
-            </label>
-            <label>
-              Crash drop (% ou fraction)
-              <input type="number" id="crash_drop_input" value="20" step="any" min="0" placeholder="ex: 20 ou 0.2" title="Accepte 20 (pour 20%) ou 0.2 (fraction)" />
-            </label>
-            <label>
-              API Key (optionnel)
-              <input type="password" id="api_key" placeholder="X-API-Key" />
-            </label>
-          </div>
-          <div class="actions">
-            <button type="submit" id="run-btn">Run</button>
-            <button type="button" id="explain-btn" class="secondary">Explication</button>
-          </div>
-        </form>
-      </section>
-
-      <section class="panel">
-        <h2>Console / logs</h2>
-        <pre id="console" class="console" aria-live="polite"></pre>
-      </section>
-
-      <section class="panel">
-        <h2>Résultats</h2>
-        <div class="table-wrap">
-          <table id="results">
-            <thead>
-              <tr>
-                <th>Asset</th>
-                <th>p_crash</th>
-                <th>confidence</th>
-                <th>AUC</th>
-                <th>PR-AUC</th>
-                <th>Brier</th>
-                <th>Policy</th>
-              </tr>
-            </thead>
-            <tbody id="results-body"></tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-
-    <div id="modal" class="modal" hidden>
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Comment l’analyse fonctionne (6 étapes)</h3>
-        </div>
-        <div class="modal-body">
-          <ol>
-            <li>Données: téléchargement de l’historique OHLCV (Binance via ccxt).</li>
-            <li>Features: construction sans fuite d’information (retours, volatilité, RSI, distances MAs, drawdown, etc.).</li>
-            <li>Split temporel: train/test chronologique en conservant 2 classes en train.</li>
-            <li>Apprentissage: régression logistique (équilibrée) et gradient boosting; sélection par Brier (tie-break AUC).</li>
-            <li>Prédiction du jour: p_crash + confidence = 1 − Brier; génération d’un policy_hint.</li>
-            <li>Report: JSON par symbole avec p_crash, metrics (AUC/PR-AUC/Brier) et policy.</li>
-          </ol>
-        </div>
-        <div class="modal-footer">
-          <button id="close-modal" class="secondary">Fermer</button>
-        </div>
-      </div>
-    </div>
-
-    <script src="./app.js"></script>
-  </body>
-  </html>
-<!doctype html>
+﻿<!doctype html>
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
@@ -158,7 +58,8 @@
         </section>
 
         <section class="panel-inner">
-          <h2>Resultats</h2>\n          <div class="actions"><button type="button" id="download-report" class="secondary">T�l�charger report.json</button></div>
+          <h2>Resultats</h2>
+          <div class="actions"><button type="button" id="download-report" class="secondary">Télécharger report.json</button></div>
           <div class="table-wrap">
             <table id="results">
               <thead>
@@ -201,16 +102,23 @@
                 <th>Feature</th>
                 <th>Coefficient</th>
                 <th>OR@1</th>
-                <th>Score</th>\n                <th>Source</th>\n                <th>Explication</th>
+                <th>Score</th>
+                <th>Source</th>
+                <th>Explication</th>
               </tr>
             </thead>
             <tbody id="reverse-body"></tbody>
           </table>
         </div>
 
-        <div class="actions" style="margin-top:8px">\n          <button type="button" id="rev-copy-btn" class="secondary">Copier</button>\n        </div>\n\n        <div class="chart-wrap">
+        <div class="actions" style="margin-top:8px">
+          <button type="button" id="rev-copy-btn" class="secondary">Copier</button>
+        </div>
+
+        <div class="chart-wrap">
           <canvas id="reverse-chart" height="320"></canvas>
         </div>
+        <div id="plots" class="plots"></div>
       </section>
     </main>
 
@@ -239,5 +147,3 @@
     <script type="module" src="./app.js"></script>
   </body>
   </html>
-
-

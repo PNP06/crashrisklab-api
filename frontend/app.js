@@ -1,8 +1,7 @@
-// app.js (ES module)
+﻿// app.js (ES module)
 import { featureExplanations } from "./reverse_explain.js";
 
-// URL de l'API Render (mise à jour)
-// Service: crashrisklab-api (Render)
+// URL de l'API Render
 export const API_URL = "https://crashrisklab-api.onrender.com";
 
 const els = {
@@ -24,7 +23,8 @@ const els = {
   tabBtnCrash: document.getElementById("tab-btn-crash"),
   tabBtnReverse: document.getElementById("tab-btn-reverse"),
   tabCrash: document.getElementById("tab-crash"),
-  tabReverse: document.getElementById("tab-reverse"),\n  downloadBtn: document.getElementById("download-report"),
+  tabReverse: document.getElementById("tab-reverse"),
+  downloadBtn: document.getElementById("download-report"),
   // Reverse tab
   revSymbol: document.getElementById("rev_symbol"),
   revRunBtn: document.getElementById("rev-run-btn"),
@@ -32,7 +32,8 @@ const els = {
   revError: document.getElementById("rev_error"),
   revLoading: document.getElementById("rev_loading"),
   revBody: document.getElementById("reverse-body"),
-  revChartCanvas: document.getElementById("reverse-chart"),\n  revCopyBtn: document.getElementById("rev-copy-btn"),
+  revChartCanvas: document.getElementById("reverse-chart"),
+  revCopyBtn: document.getElementById("rev-copy-btn"),
 };
 
 function log(msg) {
@@ -99,7 +100,7 @@ function startProgressLog() {
   let i = 0;
   const id = setInterval(() => {
     if (i >= steps.length) return;
-    log(steps[i] + " …");
+    log(steps[i] + " ...");
     i += 1;
   }, 1200);
   return id;
@@ -108,7 +109,7 @@ function startProgressLog() {
 els.form.addEventListener("submit", async (e) => {
   e.preventDefault();
   els.btn.disabled = true;
-  log("Préparation de la requête /run …");
+  log("Préparation de la requête /run ...");
   let progressId = startProgressLog();
   try {
     const symbols = els.symbols.value.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
@@ -127,7 +128,7 @@ els.form.addEventListener("submit", async (e) => {
 
     const report = await callRun(body, headers);
     clearInterval(progressId);
-    log("Réponse reçue. Rendu des résultats …");
+    log("Réponse reçue. Rendu des résultats ...");
     renderResults(report);
     log("Fini.");
   } catch (err) {
@@ -192,7 +193,7 @@ function renderReverseTable(features) {
   els.revBody.innerHTML = "";
   for (const f of features) {
     const tr = document.createElement("tr");
-    const explain = f.explain || featureExplanations[f.name] || "(non documente)";
+    const explain = f.explain || featureExplanations[f.name] || "(non documenté)";
     const coefStr = typeof f.coef === "number" && isFinite(f.coef) ? f.coef.toFixed(3) : "n/a";
     const orStr = typeof f.or_at_1 === "number" && isFinite(f.or_at_1) ? f.or_at_1.toFixed(3) : "n/a";
     const scoreStr = typeof f.score === "number" && isFinite(f.score) ? f.score.toFixed(4) : "n/a";
@@ -201,6 +202,7 @@ function renderReverseTable(features) {
       <td>${coefStr}</td>
       <td>${orStr}</td>
       <td>${scoreStr}</td>
+      <td>${f.source || ""}</td>
       <td>${explain}</td>
     `;
     els.revBody.appendChild(tr);
@@ -287,7 +289,30 @@ async function runReverseAnalysis() {
 }
 
 if (els.revRunBtn) {
-  els.revRunBtn.addEventListener("click", runReverseAnalysis);\n}\n\nif (els.revCopyBtn) {\n  els.revCopyBtn.addEventListener("click", () => {\n    const rows = Array.from(els.revBody.querySelectorAll("tr")).map(tr =>\n      Array.from(tr.children).map(td => td.textContent.trim()).join("\t")\n    );\n    const header = ["Feature","Coefficient","OR@1","Score","Source","Explication"].join("\t");\n    const txt = [header, ...rows].join("\n");\n    navigator.clipboard.writeText(txt).catch(()=>{});\n  });
+  els.revRunBtn.addEventListener("click", runReverseAnalysis);
 }
 
-\nif (els.downloadBtn) {\n  els.downloadBtn.addEventListener('click', async () => {\n    try {\n      const res = await fetch(${API_URL}/last_report);\n      if(!res.ok) throw new Error(HTTP );\n      const data = await res.json();\n      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});\n      const url = URL.createObjectURL(blob);\n      const a = document.createElement('a');\n      a.href = url; a.download = 'report.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);\n    } catch(err){ log(ERREUR download: ); }\n  });\n}\n
+if (els.revCopyBtn) {
+  els.revCopyBtn.addEventListener("click", () => {
+    const rows = Array.from(els.revBody.querySelectorAll("tr")).map(tr =>
+      Array.from(tr.children).map(td => td.textContent.trim()).join("\t")
+    );
+    const header = ["Feature","Coefficient","OR@1","Score","Source","Explication"].join("\t");
+    const txt = [header, ...rows].join("\n");
+    navigator.clipboard.writeText(txt).catch(()=>{});
+  });
+}
+
+if (els.downloadBtn) {
+  els.downloadBtn.addEventListener('click', async () => {
+    try {
+      const res = await fetch(`${API_URL}/last_report`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'report.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    } catch (err) { log(`ERREUR download: ${err.message || err}`); }
+  });
+}
